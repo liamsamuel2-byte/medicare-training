@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { BookOpen, Users, CheckCircle, AlertTriangle } from "lucide-react";
-import SendRemindersButton from "@/components/admin/SendRemindersButton";
+import IncompleteAgentsList from "@/components/admin/IncompleteAgentsList";
 
 export default async function AdminDashboard() {
   const [projects, users, results] = await Promise.all([
@@ -18,7 +18,7 @@ export default async function AdminDashboard() {
     },
   });
 
-  const incompleteSet = new Map<string, { name: string; email: string; missing: string[] }>();
+  const incompleteSet = new Map<string, { id: string; name: string; email: string; missing: string[] }>();
 
   for (const project of allProjects) {
     if (project.assignments.length === 0) continue;
@@ -36,6 +36,7 @@ export default async function AdminDashboard() {
           existing.missing.push(project.title);
         } else {
           incompleteSet.set(assignment.user.id, {
+            id: assignment.user.id,
             name: assignment.user.name,
             email: assignment.user.email,
             missing: [project.title],
@@ -67,10 +68,7 @@ export default async function AdminDashboard() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-10">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-        <SendRemindersButton incompleteCount={incompleteAgents.length} />
-      </div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
         {stats.map((s) => (
@@ -99,26 +97,7 @@ export default async function AdminDashboard() {
               Full report →
             </Link>
           </div>
-          <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-            {incompleteAgents.length === 0 && (
-              <p className="px-6 py-4 text-gray-400 text-sm">All assigned agents are up to date.</p>
-            )}
-            {incompleteAgents.map((agent) => (
-              <div key={agent.email} className="px-6 py-3 flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{agent.name}</p>
-                  <p className="text-xs text-gray-400">{agent.email}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  {agent.missing.map((t) => (
-                    <span key={t} className="block text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded mb-0.5">
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <IncompleteAgentsList agents={incompleteAgents} />
         </div>
 
         {/* Recent completions */}

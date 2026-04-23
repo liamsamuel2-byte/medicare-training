@@ -13,20 +13,19 @@ export async function POST(req: NextRequest) {
   if (!session || !isManager(session.user.role))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Optional: scope to a specific projectId
-  const { projectId } = await req.json().catch(() => ({ projectId: null }));
+  const body = await req.json().catch(() => ({}));
+  const { userId } = body as { userId?: string };
 
   const projects = await prisma.project.findMany({
-    where: projectId ? { id: projectId } : undefined,
     include: {
       chapters: { select: { id: true } },
       assignments: {
+        where: userId ? { userId } : undefined,
         include: { user: { select: { id: true, name: true, email: true } } },
       },
     },
   });
 
-  // Build a map of userId → { user, missing projects }
   const incompleteMap = new Map<string, { name: string; email: string; missing: string[] }>();
 
   for (const project of projects) {
@@ -55,22 +54,16 @@ export async function POST(req: NextRequest) {
   }
 
   const targets = Array.from(incompleteMap.values());
-  if (targets.length === 0) {
-    return NextResponse.json({ sent: 0 });
-  }
+  if (targets.length === 0) return NextResponse.json({ sent: 0 });
 
   let sent = 0;
   const errors: string[] = [];
 
   for (const target of targets) {
     try {
-      await sendReminderEmail({
-        to: target.email,
-        name: target.name,
-        projects: target.missing,
-      });
+      await sendReminderEmail({ to: target.email, name: target.name, projects: target.missing });
       sent++;
-    } catch (err) {
+    } catch {
       errors.push(target.email);
     }
   }
