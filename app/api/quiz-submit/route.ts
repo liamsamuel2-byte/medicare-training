@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const PASS_RATE = 80;
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,11 +29,22 @@ export async function POST(req: NextRequest) {
 
   const total = questions.length;
   const score = total > 0 ? (correct / total) * 100 : 100;
+  const passed = score >= PASS_RATE;
+
+  const existing = await prisma.chapterResult.findUnique({
+    where: { userId_chapterId: { userId: session.user.id, chapterId } },
+  });
 
   const result = await prisma.chapterResult.upsert({
     where: { userId_chapterId: { userId: session.user.id, chapterId } },
-    create: { userId: session.user.id, chapterId, projectId, score, totalQ: total, correctQ: correct },
-    update: { score, totalQ: total, correctQ: correct, projectId },
+    create: { userId: session.user.id, chapterId, projectId, score, totalQ: total, correctQ: correct, passed },
+    update: {
+      score,
+      totalQ: total,
+      correctQ: correct,
+      projectId,
+      passed: existing?.passed || passed,
+    },
   });
 
   if (responses.length > 0) {
@@ -45,5 +58,5 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ score, correct, total });
+  return NextResponse.json({ score, correct, total, passed });
 }

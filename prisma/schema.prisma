@@ -25,6 +25,7 @@ model User {
 
   chapterResults ChapterResult[]
   videoProgress  VideoProgress[]
+  assignments    ProjectAssignment[]
 }
 
 model Project {
@@ -36,7 +37,22 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  chapters Chapter[]
+  chapters    Chapter[]
+  assignments ProjectAssignment[]
+}
+
+model ProjectAssignment {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String
+  assignedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@index([userId])
 }
 
 model Chapter {
@@ -48,6 +64,8 @@ model Chapter {
   videoUrl      String?
   videoPublicId String?
   videoDuration Float?
+  imageUrl      String?
+  imagePublicId String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -64,6 +82,8 @@ model Question {
   id        String   @id @default(cuid())
   chapterId String
   text      String
+  imageUrl  String?
+  imagePublicId String?
   order     Int
   createdAt DateTime @default(now())
 
@@ -95,6 +115,7 @@ model ChapterResult {
   score       Float
   totalQ      Int
   correctQ    Int
+  passed      Boolean  @default(false)
   completedAt DateTime @default(now())
 
   user      User           @relation(fields: [userId], references: [id])

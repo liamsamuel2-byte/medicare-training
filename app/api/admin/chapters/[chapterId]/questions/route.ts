@@ -17,6 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ chap
     questions: {
       id?: string;
       text: string;
+      imageUrl?: string | null;
       order: number;
       answers: { id?: string; text: string; isCorrect: boolean; order: number }[];
     }[];
@@ -29,6 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ chap
       data: {
         chapterId,
         text: q.text,
+        imageUrl: q.imageUrl ?? null,
         order: q.order,
         answers: {
           create: q.answers.map((a) => ({

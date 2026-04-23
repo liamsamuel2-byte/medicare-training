@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { LogOut, BookOpen, CheckCircle, Clock } from "lucide-react";
 
 export default async function DashboardPage() {
@@ -13,7 +14,8 @@ export default async function DashboardPage() {
     redirect("/admin");
   }
 
-  const projects = await prisma.project.findMany({
+  // Show projects that are either assigned to this user, or have no assignments at all
+  const allProjects = await prisma.project.findMany({
     where: { isActive: true },
     include: {
       chapters: {
@@ -23,14 +25,22 @@ export default async function DashboardPage() {
           results: { where: { userId: session.user.id } },
         },
       },
+      assignments: { select: { userId: true } },
     },
     orderBy: { createdAt: "asc" },
   });
 
+  const projects = allProjects.filter(
+    (p) => p.assignments.length === 0 || p.assignments.some((a) => a.userId === session.user.id)
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-blue-900 text-white px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">Medicare Training Portal</h1>
+      <nav className="bg-blue-900 text-white px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Image src="/nsba-logo.png" alt="NSBA Logo" width={44} height={44} className="rounded-full" />
+          <h1 className="text-xl font-bold">Medicare Training Portal</h1>
+        </div>
         <div className="flex items-center gap-4">
           <span className="text-blue-200 text-sm">{session.user.name}</span>
           <Link

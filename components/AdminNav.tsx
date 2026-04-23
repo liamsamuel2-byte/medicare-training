@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, BookOpen, Users, BarChart2, LogOut } from "lucide-react";
 
@@ -15,9 +16,12 @@ export default function AdminNav({ userName }: { userName: string }) {
 
   return (
     <nav className="bg-blue-900 text-white px-6 py-0 flex items-center gap-1">
-      <div className="py-4 pr-8 border-r border-blue-700">
-        <span className="font-bold text-lg">Medicare Training</span>
-        <span className="ml-2 text-xs bg-blue-700 px-2 py-0.5 rounded text-blue-200">Admin</span>
+      <div className="py-2 pr-8 border-r border-blue-700 flex items-center gap-3">
+        <Image src="/nsba-logo.png" alt="NSBA Logo" width={44} height={44} className="rounded-full" />
+        <div>
+          <span className="font-bold text-sm block leading-tight">Medicare Training</span>
+          <span className="text-xs bg-blue-700 px-2 py-0.5 rounded text-blue-200">Admin</span>
+        </div>
       </div>
       <div className="flex items-center gap-1 flex-1 px-4">
         {links.map(({ href, label, icon: Icon }) => {

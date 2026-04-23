@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, ImagePlus, Loader2 } from "lucide-react";
+import Image from "next/image";
 
 interface Chapter {
   id: string; title: string; description: string | null; isActive: boolean;
+  imageUrl?: string | null;
 }
 
 interface Props {
@@ -17,7 +19,21 @@ export default function ChapterModal({ projectId, chapter, onSave, onClose }: Pr
   const [title, setTitle] = useState(chapter?.title ?? "");
   const [description, setDescription] = useState(chapter?.description ?? "");
   const [isActive, setIsActive] = useState(chapter?.isActive ?? true);
+  const [imageUrl, setImageUrl] = useState<string | null>(chapter?.imageUrl ?? null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  async function handleImageUpload(file: File) {
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+    if (res.ok) {
+      const data = await res.json();
+      setImageUrl(data.url);
+    }
+    setUploadingImage(false);
+  }
 
   async function handleSave() {
     if (!title.trim()) return;
@@ -27,7 +43,7 @@ export default function ChapterModal({ projectId, chapter, onSave, onClose }: Pr
       const res = await fetch(`/api/admin/chapters/${chapter.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, isActive }),
+        body: JSON.stringify({ title, description, isActive, imageUrl }),
       });
       const updated = await res.json();
       onSave({ ...chapter, ...updated });
@@ -72,6 +88,51 @@ export default function ChapterModal({ projectId, chapter, onSave, onClose }: Pr
               rows={3}
             />
           </div>
+
+          {/* Chapter image upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Chapter Image <span className="text-gray-400 font-normal">(shown instead of video if no video uploaded)</span>
+            </label>
+            {imageUrl ? (
+              <div className="relative inline-block">
+                <Image
+                  src={imageUrl}
+                  alt="Chapter image"
+                  width={400}
+                  height={250}
+                  className="rounded-lg max-h-40 object-contain border border-gray-200 w-full"
+                />
+                <button
+                  onClick={() => setImageUrl(null)}
+                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700 transition"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-2 border border-dashed border-gray-300 rounded-lg px-4 py-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition">
+                {uploadingImage ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <ImagePlus size={16} />
+                )}
+                {uploadingImage ? "Uploading…" : "Upload chapter image"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingImage}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
+          </div>
+
           {chapter && (
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input
@@ -92,7 +153,7 @@ export default function ChapterModal({ projectId, chapter, onSave, onClose }: Pr
             </button>
             <button
               onClick={handleSave}
-              disabled={!title.trim() || loading}
+              disabled={!title.trim() || loading || uploadingImage}
               className="flex-1 bg-blue-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-800 transition disabled:opacity-50"
             >
               {loading ? "Saving…" : "Save"}

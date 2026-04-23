@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
-import { X, Plus, Trash2, CheckCircle } from "lucide-react";
+import { useState, useCallback } from "react";
+import { X, Plus, Trash2, CheckCircle, ImagePlus, Loader2 } from "lucide-react";
+import Image from "next/image";
 
 interface Answer { id?: string; text: string; isCorrect: boolean; order: number }
-interface Question { id?: string; text: string; order: number; answers: Answer[] }
+interface Question { id?: string; text: string; imageUrl?: string | null; order: number; answers: Answer[] }
 interface Chapter { id: string; title: string; questions: Question[] }
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 function emptyQuestion(order: number): Question {
   return {
     text: "",
+    imageUrl: null,
     order,
     answers: [
       { text: "", isCorrect: true, order: 1 },
@@ -30,6 +32,7 @@ export default function QuizEditor({ chapter, onSave, onClose }: Props) {
     chapter.questions.length > 0 ? chapter.questions : [emptyQuestion(1)]
   );
   const [saving, setSaving] = useState(false);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
 
   function addQuestion() {
     setQuestions((prev) => [...prev, emptyQuestion(prev.length + 1)]);
@@ -48,9 +51,7 @@ export default function QuizEditor({ chapter, onSave, onClose }: Props) {
       prev.map((q, i) => {
         if (i !== qi) return q;
         const answers: Answer[] = q.answers.map((a, j) => {
-          if (field === "isCorrect") {
-            return { ...a, isCorrect: j === ai };
-          }
+          if (field === "isCorrect") return { ...a, isCorrect: j === ai };
           return j === ai ? { ...a, text: value as string } : a;
         });
         return { ...q, answers };
@@ -80,6 +81,22 @@ export default function QuizEditor({ chapter, onSave, onClose }: Props) {
         return { ...q, answers };
       })
     );
+  }
+
+  async function handleImageUpload(qi: number, file: File) {
+    setUploadingIdx(qi);
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+    if (res.ok) {
+      const data = await res.json();
+      setQuestions((prev) => prev.map((q, i) => i === qi ? { ...q, imageUrl: data.url } : q));
+    }
+    setUploadingIdx(null);
+  }
+
+  function removeImage(qi: number) {
+    setQuestions((prev) => prev.map((q, i) => i === qi ? { ...q, imageUrl: null } : q));
   }
 
   async function handleSave() {
@@ -132,6 +149,47 @@ export default function QuizEditor({ chapter, onSave, onClose }: Props) {
                 >
                   <Trash2 size={16} />
                 </button>
+              </div>
+
+              {/* Question image */}
+              <div className="ml-7">
+                {q.imageUrl ? (
+                  <div className="relative inline-block">
+                    <Image
+                      src={q.imageUrl}
+                      alt="Question image"
+                      width={400}
+                      height={250}
+                      className="rounded-lg max-h-48 object-contain border border-gray-200"
+                    />
+                    <button
+                      onClick={() => removeImage(qi)}
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 hover:bg-red-700 transition"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 text-xs text-gray-400 hover:text-blue-600 cursor-pointer transition w-fit">
+                    {uploadingIdx === qi ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <ImagePlus size={14} />
+                    )}
+                    {uploadingIdx === qi ? "Uploading…" : "Add image to question"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingIdx !== null}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(qi, file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               <div className="space-y-2 ml-7">

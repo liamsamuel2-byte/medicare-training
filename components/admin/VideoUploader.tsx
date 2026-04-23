@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, X, CheckCircle, Video } from "lucide-react";
+import { Upload, X, CheckCircle, Video, Trash2 } from "lucide-react";
 
 interface Chapter {
   id: string; title: string; videoUrl: string | null;
@@ -10,12 +10,14 @@ interface Chapter {
 interface Props {
   chapter: Chapter;
   onUploaded: (url: string, publicId: string, duration: number) => void;
+  onDeleted?: () => void;
   onClose: () => void;
 }
 
-export default function VideoUploader({ chapter, onUploaded, onClose }: Props) {
+export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
 
@@ -84,9 +86,29 @@ export default function VideoUploader({ chapter, onUploaded, onClose }: Props) {
         </div>
 
         {chapter.videoUrl && !file && (
-          <div className="mb-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-            <CheckCircle size={16} />
-            A video is already uploaded. Uploading a new one will replace it.
+          <div className="mb-4 flex items-center justify-between text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+            <span className="flex items-center gap-2">
+              <CheckCircle size={16} />
+              A video is already uploaded. Uploading a new one will replace it.
+            </span>
+            <button
+              onClick={async () => {
+                if (!confirm("Delete the current video?")) return;
+                setDeleting(true);
+                await fetch(`/api/admin/chapters/${chapter.id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ videoUrl: null, videoPublicId: null, videoDuration: null }),
+                });
+                setDeleting(false);
+                onDeleted?.();
+                onClose();
+              }}
+              disabled={deleting}
+              className="flex items-center gap-1 text-red-600 hover:text-red-800 text-xs font-medium transition disabled:opacity-50"
+            >
+              <Trash2 size={13} /> {deleting ? "Deleting…" : "Delete video"}
+            </button>
           </div>
         )}
 

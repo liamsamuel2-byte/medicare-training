@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,8 +33,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-700">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-10">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-900">Medicare Training</h1>
-          <p className="text-gray-500 mt-2">Sign in to your account</p>
+          <Image src="/nsba-logo.png" alt="NSBA Logo" width={72} height={72} className="mx-auto mb-4 rounded-full" />
+          <h1 className="text-2xl font-bold text-blue-900">Medicare Training Portal</h1>
+          <p className="text-gray-500 mt-1 text-sm">Sign in to your account</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
@@ -70,6 +73,10 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
+        <p className="text-center text-sm text-gray-500 mt-6">
+          New agent?{" "}
+          <Link href="/signup" className="text-blue-600 hover:underline font-medium">Create an account</Link>
+        </p>
       </div>
     </div>
   );
