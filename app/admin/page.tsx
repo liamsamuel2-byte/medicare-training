@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { BookOpen, Users, CheckCircle, AlertTriangle } from "lucide-react";
+import SendRemindersButton from "@/components/admin/SendRemindersButton";
 
 export default async function AdminDashboard() {
   const [projects, users, results] = await Promise.all([
@@ -66,7 +67,10 @@ export default async function AdminDashboard() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-10">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+        <SendRemindersButton incompleteCount={incompleteAgents.length} />
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
         {stats.map((s) => (
