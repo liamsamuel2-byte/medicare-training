@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         where: {
           userId: assignment.user.id,
           chapterId: { in: project.chapters.map((c) => c.id) },
-          passed: true,
+          OR: [{ passed: true }, { score: { gte: 80 } }],
         },
       });
       if (passedCount < project.chapters.length) {

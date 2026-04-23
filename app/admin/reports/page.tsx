@@ -39,7 +39,7 @@ export default async function ReportsPage() {
           .map((a) => a.user)
           .filter((u) => {
             const completedChapters = project.chapters.filter((c) =>
-              c.results.some((r) => r.userId === u.id && r.passed)
+              c.results.some((r) => r.userId === u.id && (r.passed || r.score >= 80))
             ).length;
             return completedChapters < project.chapters.length;
           });
