@@ -43,6 +43,7 @@ export default async function ChapterPage({
       projectId={projectId}
       alreadyCompleted={!!existingResult}
       existingScore={existingResult?.score ?? null}
+      existingPassed={existingResult?.passed ?? false}
       savedMaxPosition={videoProgress?.maxPosition ?? 0}
       videoCompleted={videoProgress?.completed ?? false}
     />
