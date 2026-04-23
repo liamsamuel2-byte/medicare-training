@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { BookOpen, Users, CheckCircle, BarChart2 } from "lucide-react";
+import { BookOpen, Users, CheckCircle, AlertTriangle } from "lucide-react";
 
 export default async function AdminDashboard() {
   const [projects, users, results] = await Promise.all([
@@ -8,6 +8,45 @@ export default async function AdminDashboard() {
     prisma.user.count({ where: { role: "AGENT" } }),
     prisma.chapterResult.count(),
   ]);
+
+  // Agents who are assigned to at least one project and haven't passed all chapters in it
+  const allProjects = await prisma.project.findMany({
+    include: {
+      chapters: { select: { id: true } },
+      assignments: { include: { user: { select: { id: true, name: true, email: true } } } },
+    },
+  });
+
+  const incompleteSet = new Map<string, { name: string; email: string; missing: string[] }>();
+
+  for (const project of allProjects) {
+    if (project.assignments.length === 0) continue;
+    for (const assignment of project.assignments) {
+      const passedCount = await prisma.chapterResult.count({
+        where: {
+          userId: assignment.user.id,
+          chapterId: { in: project.chapters.map((c) => c.id) },
+          passed: true,
+        },
+      });
+      if (passedCount < project.chapters.length) {
+        const existing = incompleteSet.get(assignment.user.id);
+        if (existing) {
+          existing.missing.push(project.title);
+        } else {
+          incompleteSet.set(assignment.user.id, {
+            name: assignment.user.name,
+            email: assignment.user.email,
+            missing: [project.title],
+          });
+        }
+      }
+    }
+  }
+
+  const incompleteAgents = Array.from(incompleteSet.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 
   const recentResults = await prisma.chapterResult.findMany({
     take: 10,
@@ -22,13 +61,14 @@ export default async function AdminDashboard() {
     { label: "Projects", value: projects, icon: BookOpen, href: "/admin/projects", color: "blue" },
     { label: "Agents", value: users, icon: Users, href: "/admin/users", color: "indigo" },
     { label: "Completions", value: results, icon: CheckCircle, href: "/admin/reports", color: "green" },
+    { label: "Incomplete", value: incompleteAgents.length, icon: AlertTriangle, href: "/admin/reports", color: "amber" },
   ];
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-10">
       <h1 className="text-2xl font-bold text-gray-900 mb-8">Admin Dashboard</h1>
 
-      <div className="grid grid-cols-3 gap-6 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
         {stats.map((s) => (
           <Link
             key={s.label}
@@ -46,37 +86,68 @@ export default async function AdminDashboard() {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800">Recent Completions</h2>
-          <Link href="/admin/reports" className="text-sm text-blue-600 hover:underline">
-            View all →
-          </Link>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Incomplete agents */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800">Agents Not Yet Complete</h2>
+            <Link href="/admin/reports" className="text-sm text-blue-600 hover:underline">
+              Full report →
+            </Link>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+            {incompleteAgents.length === 0 && (
+              <p className="px-6 py-4 text-gray-400 text-sm">All assigned agents are up to date.</p>
+            )}
+            {incompleteAgents.map((agent) => (
+              <div key={agent.email} className="px-6 py-3 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{agent.name}</p>
+                  <p className="text-xs text-gray-400">{agent.email}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  {agent.missing.map((t) => (
+                    <span key={t} className="block text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded mb-0.5">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="divide-y divide-gray-50">
-          {recentResults.length === 0 && (
-            <p className="px-6 py-4 text-gray-400 text-sm">No completions yet.</p>
-          )}
-          {recentResults.map((r) => (
-            <div key={r.id} className="px-6 py-3 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-800">{r.user.name}</p>
-                <p className="text-xs text-gray-400">
-                  {r.chapter.project.title} — {r.chapter.title}
-                </p>
+
+        {/* Recent completions */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800">Recent Completions</h2>
+            <Link href="/admin/reports" className="text-sm text-blue-600 hover:underline">
+              View all →
+            </Link>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+            {recentResults.length === 0 && (
+              <p className="px-6 py-4 text-gray-400 text-sm">No completions yet.</p>
+            )}
+            {recentResults.map((r) => (
+              <div key={r.id} className="px-6 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{r.user.name}</p>
+                  <p className="text-xs text-gray-400">
+                    {r.chapter.project.title} — {r.chapter.title}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className={`text-sm font-bold ${r.score >= 80 ? "text-green-600" : "text-red-600"}`}>
+                    {Math.round(r.score)}%
+                  </span>
+                  <p className="text-xs text-gray-400">
+                    {new Date(r.completedAt).toLocaleDateString()}
+                  </p>
+                </div>
               </div>
-              <div className="text-right">
-                <span
-                  className={`text-sm font-bold ${r.score >= 70 ? "text-green-600" : "text-red-600"}`}
-                >
-                  {Math.round(r.score)}%
-                </span>
-                <p className="text-xs text-gray-400">
-                  {new Date(r.completedAt).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </main>
