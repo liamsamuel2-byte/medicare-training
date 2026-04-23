@@ -1,27 +1,30 @@
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
-export default withAuth(
-  function middleware(req) {
-    const { pathname } = req.nextUrl;
-    const role = req.nextauth.token?.role;
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
 
-    if (pathname.startsWith("/admin") && role !== "MANAGER" && role !== "ADMIN") {
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+  const isPublic =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/train/") ||
+    pathname.startsWith("/api/auth");
+
+  if (!token && !isPublic) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  if (token && pathname.startsWith("/admin")) {
+    const role = token.role as string;
+    if (role !== "MANAGER" && role !== "ADMIN") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        const { pathname } = req.nextUrl;
-        if (pathname.startsWith("/login") || pathname.startsWith("/train/")) return true;
-        return !!token;
-      },
-    },
   }
-);
+
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
