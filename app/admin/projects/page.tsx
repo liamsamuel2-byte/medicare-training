@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { Plus, BookOpen, ExternalLink } from "lucide-react";
+import { BookOpen, ExternalLink } from "lucide-react";
 import NewProjectButton from "@/components/admin/NewProjectButton";
+import DeleteProjectButton from "@/components/admin/DeleteProjectButton";
 
 export default async function ProjectsPage() {
   const projects = await prisma.project.findMany({
@@ -64,6 +65,7 @@ export default async function ProjectsPage() {
                 >
                   Manage
                 </Link>
+                <DeleteProjectButton projectId={p.id} projectTitle={p.title} />
               </div>
             </div>
           );

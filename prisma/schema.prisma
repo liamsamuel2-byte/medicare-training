@@ -26,6 +26,7 @@ model User {
   chapterResults ChapterResult[]
   videoProgress  VideoProgress[]
   assignments    ProjectAssignment[]
+  resetTokens    PasswordResetToken[]
 }
 
 model Project {
@@ -136,6 +137,17 @@ model QuizResponse {
   chapterResult ChapterResult @relation(fields: [chapterResultId], references: [id], onDelete: Cascade)
   question      Question      @relation(fields: [questionId], references: [id])
   answer        Answer        @relation(fields: [answerId], references: [id])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique @default(cuid())
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VideoProgress {
