@@ -49,6 +49,23 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ pro
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { projectId } = await params;
+
+  // Get all chapter IDs for this project
+  const chapters = await prisma.chapter.findMany({
+    where: { projectId },
+    select: { id: true },
+  });
+  const chapterIds = chapters.map((c) => c.id);
+
+  // Delete in dependency order to avoid FK constraint errors
+  await prisma.quizResponse.deleteMany({
+    where: { chapterResult: { chapterId: { in: chapterIds } } },
+  });
+  await prisma.chapterResult.deleteMany({ where: { chapterId: { in: chapterIds } } });
+  await prisma.videoProgress.deleteMany({ where: { chapterId: { in: chapterIds } } });
+
+  // Now delete the project — cascades handle chapters, questions, answers, assignments
   await prisma.project.delete({ where: { id: projectId } });
+
   return NextResponse.json({ ok: true });
 }

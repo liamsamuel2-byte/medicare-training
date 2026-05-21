@@ -10,8 +10,14 @@ export default function DeleteProjectButton({ projectId, projectTitle }: { proje
   async function handleDelete() {
     if (!confirm(`Delete "${projectTitle}" and all its chapters, quizzes, and results? This cannot be undone.`)) return;
     setLoading(true);
-    await fetch(`/api/admin/projects/${projectId}`, { method: "DELETE" });
-    router.refresh();
+    const res = await fetch(`/api/admin/projects/${projectId}`, { method: "DELETE" });
+    if (res.ok) {
+      router.push("/admin/projects");
+      router.refresh();
+    } else {
+      alert("Failed to delete project. Please try again.");
+      setLoading(false);
+    }
   }
 
   return (
