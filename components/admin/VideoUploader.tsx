@@ -76,16 +76,17 @@ export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose 
             onUploaded(data.secure_url, data.public_id, data.duration);
             resolve();
           } else {
-            reject(new Error("Upload failed"));
+            const errData = JSON.parse(xhr.responseText);
+            reject(new Error(errData?.error?.message || `Upload failed (${xhr.status})`));
           }
         };
-        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.onerror = () => reject(new Error("Network error during upload"));
         xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
         xhr.send(formData);
       });
 
-    } catch (err) {
-      setError("Upload failed. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Upload failed. Please try again.");
       setUploading(false);
     }
   }
