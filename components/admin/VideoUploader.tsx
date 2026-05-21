@@ -35,41 +35,59 @@ export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose 
     if (!file) return;
     setUploading(true);
     setError("");
+    setProgress(0);
 
-    const formData = new FormData();
-    formData.append("file", file);
+    try {
+      // 1. Get a signed upload signature from our server
+      const sigRes = await fetch("/api/admin/cloudinary-signature");
+      if (!sigRes.ok) throw new Error("Failed to get upload credentials");
+      const { timestamp, signature, folder, apiKey, cloudName } = await sigRes.json();
 
-    const xhr = new XMLHttpRequest();
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-    };
+      // 2. Upload directly to Cloudinary — bypasses Vercel's 4.5MB limit
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("timestamp", String(timestamp));
+      formData.append("signature", signature);
+      formData.append("api_key", apiKey);
+      formData.append("folder", folder);
+      formData.append("resource_type", "video");
 
-    xhr.onload = async () => {
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText);
-        await fetch(`/api/admin/chapters/${chapter.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            videoUrl: data.url,
-            videoPublicId: data.publicId,
-            videoDuration: data.duration,
-          }),
-        });
-        onUploaded(data.url, data.publicId, data.duration);
-      } else {
-        setError("Upload failed. Please try again.");
-        setUploading(false);
-      }
-    };
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+      };
 
-    xhr.onerror = () => {
+      await new Promise<void>((resolve, reject) => {
+        xhr.onload = async () => {
+          if (xhr.status === 200) {
+            const data = JSON.parse(xhr.responseText);
+
+            // 3. Save URL to our database
+            await fetch(`/api/admin/chapters/${chapter.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                videoUrl: data.secure_url,
+                videoPublicId: data.public_id,
+                videoDuration: data.duration,
+              }),
+            });
+
+            onUploaded(data.secure_url, data.public_id, data.duration);
+            resolve();
+          } else {
+            reject(new Error("Upload failed"));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
+        xhr.send(formData);
+      });
+
+    } catch (err) {
       setError("Upload failed. Please try again.");
       setUploading(false);
-    };
-
-    xhr.open("POST", "/api/upload");
-    xhr.send(formData);
+    }
   }
 
   return (
@@ -122,7 +140,7 @@ export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose 
             <input {...getInputProps()} />
             <Upload size={36} className="mx-auto text-gray-300 mb-3" />
             <p className="text-gray-500 font-medium">Drop a video here, or click to browse</p>
-            <p className="text-gray-400 text-xs mt-1">MP4, MOV, AVI, WebM</p>
+            <p className="text-gray-400 text-xs mt-1">MP4, MOV, AVI, WebM — any size</p>
           </div>
         )}
 
@@ -142,7 +160,7 @@ export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose 
         {uploading && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Uploading…</span>
+              <span>Uploading directly to Cloudinary…</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
