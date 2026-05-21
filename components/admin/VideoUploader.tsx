@@ -14,6 +14,8 @@ interface Props {
   onClose: () => void;
 }
 
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB per chunk
+
 export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -38,52 +40,67 @@ export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose 
     setProgress(0);
 
     try {
-      // 1. Get a signed upload signature from our server
+      // 1. Get signed credentials from our server
       const sigRes = await fetch("/api/admin/cloudinary-signature");
       if (!sigRes.ok) throw new Error("Failed to get upload credentials");
       const { timestamp, signature, folder, apiKey, cloudName } = await sigRes.json();
 
-      // 2. Upload directly to Cloudinary — bypasses Vercel's 4.5MB limit
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("timestamp", String(timestamp));
-      formData.append("signature", signature);
-      formData.append("api_key", apiKey);
-      formData.append("folder", folder);
-      formData.append("resource_type", "video");
+      const uploadId = crypto.randomUUID(); // unique ID ties all chunks together
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      let finalResult: any = null;
 
-      const xhr = new XMLHttpRequest();
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-      };
+      // 2. Upload chunk by chunk directly to Cloudinary
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
 
-      await new Promise<void>((resolve, reject) => {
-        xhr.onload = async () => {
-          if (xhr.status === 200) {
-            const data = JSON.parse(xhr.responseText);
+        const formData = new FormData();
+        formData.append("file", chunk);
+        formData.append("api_key", apiKey);
+        formData.append("timestamp", String(timestamp));
+        formData.append("signature", signature);
+        formData.append("folder", folder);
 
-            // 3. Save URL to our database
-            await fetch(`/api/admin/chapters/${chapter.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                videoUrl: data.secure_url,
-                videoPublicId: data.public_id,
-                videoDuration: data.duration,
-              }),
-            });
-
-            onUploaded(data.secure_url, data.public_id, data.duration);
-            resolve();
-          } else {
-            const errData = JSON.parse(xhr.responseText);
-            reject(new Error(errData?.error?.message || `Upload failed (${xhr.status})`));
+        const response = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+          {
+            method: "POST",
+            headers: {
+              "X-Unique-Upload-Id": uploadId,
+              "Content-Range": `bytes ${start}-${end - 1}/${file.size}`,
+            },
+            body: formData,
           }
-        };
-        xhr.onerror = () => reject(new Error("Network error during upload"));
-        xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
-        xhr.send(formData);
+        );
+
+        // Only the final chunk returns the full result
+        if (response.status === 200) {
+          finalResult = await response.json();
+        } else if (response.status === 206) {
+          // Partial — chunk accepted, keep going
+        } else {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData?.error?.message || `Upload failed on chunk ${i + 1} (${response.status})`);
+        }
+
+        setProgress(Math.round(((i + 1) / totalChunks) * 100));
+      }
+
+      if (!finalResult) throw new Error("Upload incomplete — please try again.");
+
+      // 3. Save the Cloudinary URL to our database
+      await fetch(`/api/admin/chapters/${chapter.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          videoUrl: finalResult.secure_url,
+          videoPublicId: finalResult.public_id,
+          videoDuration: finalResult.duration,
+        }),
       });
+
+      onUploaded(finalResult.secure_url, finalResult.public_id, finalResult.duration);
 
     } catch (err: any) {
       setError(err.message || "Upload failed. Please try again.");
@@ -161,7 +178,7 @@ export default function VideoUploader({ chapter, onUploaded, onDeleted, onClose 
         {uploading && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Uploading directly to Cloudinary…</span>
+              <span>Uploading…</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2">
