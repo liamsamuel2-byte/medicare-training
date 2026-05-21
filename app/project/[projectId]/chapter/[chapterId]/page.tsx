@@ -36,6 +36,8 @@ export default async function ChapterPage({
     where: { userId_chapterId: { userId: session.user.id, chapterId } },
   });
 
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "MANAGER";
+
   return (
     <ChapterClient
       chapter={chapter as any}
@@ -46,6 +48,7 @@ export default async function ChapterPage({
       existingPassed={existingResult?.passed ?? false}
       savedMaxPosition={videoProgress?.maxPosition ?? 0}
       videoCompleted={videoProgress?.completed ?? false}
+      isAdmin={isAdmin}
     />
   );
 }

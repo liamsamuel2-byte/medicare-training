@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle, Lock, RefreshCw } from "lucide-react";
+import { ArrowLeft, CheckCircle, Lock, RefreshCw, FlaskConical } from "lucide-react";
 
 interface Answer { id: string; text: string; isCorrect: boolean; order: number }
 interface Question { id: string; text: string; imageUrl: string | null; answers: Answer[] }
@@ -24,6 +24,7 @@ interface Props {
   existingPassed: boolean;
   savedMaxPosition: number;
   videoCompleted: boolean;
+  isAdmin?: boolean;
 }
 
 const PASS_RATE = 80;
@@ -31,17 +32,20 @@ const PASS_RATE = 80;
 export default function ChapterClient({
   chapter, userId, projectId, alreadyCompleted, existingScore,
   existingPassed, savedMaxPosition, videoCompleted: initVideoCompleted,
+  isAdmin = false,
 }: Props) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [maxWatched, setMaxWatched] = useState(savedMaxPosition);
   const [videoCompleted, setVideoCompleted] = useState(initVideoCompleted);
   const hasMedia = !!(chapter.videoUrl || chapter.imageUrl);
+
+  // Admins see quiz immediately without needing to watch first
   const [mediaViewed, setMediaViewed] = useState(
-    !hasMedia || initVideoCompleted || alreadyCompleted
+    isAdmin || !hasMedia || initVideoCompleted || alreadyCompleted
   );
   const [showQuiz, setShowQuiz] = useState(
-    !hasMedia || initVideoCompleted || alreadyCompleted
+    isAdmin || !hasMedia || initVideoCompleted || alreadyCompleted
   );
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -53,14 +57,16 @@ export default function ChapterClient({
   const noQuiz = chapter.questions.length === 0;
 
   const saveProgress = useCallback(async (pos: number, completed: boolean) => {
+    if (isAdmin) return; // don't save progress for admin previews
     await fetch("/api/video-progress", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapterId: chapter.id, maxPosition: pos, completed }),
     });
-  }, [chapter.id]);
+  }, [chapter.id, isAdmin]);
 
   async function markNoQuizComplete() {
+    if (isAdmin) return; // don't record completions for admin previews
     await fetch("/api/chapter-complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -80,6 +86,7 @@ export default function ChapterClient({
     if (!video) return;
 
     const handleTimeUpdate = () => {
+      if (isAdmin) return; // admins can seek freely
       const current = video.currentTime;
       if (current > maxWatched + 1) { video.currentTime = maxWatched; return; }
       if (current > maxWatched) {
@@ -92,6 +99,7 @@ export default function ChapterClient({
     };
 
     const handleSeeking = () => {
+      if (isAdmin) return; // admins can seek freely
       if (video.currentTime > maxWatched + 0.5) video.currentTime = maxWatched;
     };
 
@@ -110,7 +118,7 @@ export default function ChapterClient({
       video.removeEventListener("seeking", handleSeeking);
       video.removeEventListener("ended", handleEnded);
     };
-  }, [maxWatched, saveProgress, saveTimer]);
+  }, [maxWatched, saveProgress, saveTimer, isAdmin]);
 
   async function handleSubmitQuiz() {
     if (chapter.questions.some((q) => !selected[q.id])) {
@@ -140,16 +148,23 @@ export default function ChapterClient({
   }
 
   const allAnswered = chapter.questions.every((q) => selected[q.id]);
-  const isComplete = passed || (alreadyCompleted && existingPassed);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-blue-900 text-white px-6 py-4 flex items-center gap-4">
-        <Link href="/dashboard" className="flex items-center gap-1 text-blue-200 hover:text-white transition text-sm">
-          <ArrowLeft size={16} /> Back to Dashboard
+        <Link
+          href={isAdmin ? `/admin/projects/${projectId}` : "/dashboard"}
+          className="flex items-center gap-1 text-blue-200 hover:text-white transition text-sm"
+        >
+          <ArrowLeft size={16} /> {isAdmin ? "Back to Project" : "Back to Dashboard"}
         </Link>
         <span className="text-blue-400">|</span>
         <span className="text-blue-200 text-sm">{chapter.project.title}</span>
+        {isAdmin && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs bg-amber-500 text-white px-3 py-1 rounded-full font-medium">
+            <FlaskConical size={12} /> Test Mode
+          </span>
+        )}
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-8">
@@ -169,9 +184,14 @@ export default function ChapterClient({
               className="w-full aspect-video"
               onContextMenu={(e) => e.preventDefault()}
             />
-            {!videoCompleted && (
+            {!isAdmin && !videoCompleted && (
               <div className="bg-yellow-50 border-t border-yellow-200 px-4 py-2 flex items-center gap-2 text-sm text-yellow-800">
                 <Lock size={14} /> Watch the full video to unlock the quiz. Fast-forwarding is disabled.
+              </div>
+            )}
+            {isAdmin && (
+              <div className="bg-amber-50 border-t border-amber-200 px-4 py-2 flex items-center gap-2 text-sm text-amber-800">
+                <FlaskConical size={14} /> Test mode — video skipping enabled, progress not saved.
               </div>
             )}
           </div>
@@ -269,9 +289,14 @@ export default function ChapterClient({
             {submitted && passed && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-green-700">{Math.round(score ?? 0)}%</p>
-                <p className="text-green-600 text-sm mt-1">Passed! Chapter complete.</p>
-                <Link href="/dashboard" className="inline-block mt-4 bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition">
-                  Back to Dashboard
+                <p className="text-green-600 text-sm mt-1">
+                  {isAdmin ? "Test complete! Results are not saved in test mode." : "Passed! Chapter complete."}
+                </p>
+                <Link
+                  href={isAdmin ? `/admin/projects/${projectId}` : "/dashboard"}
+                  className="inline-block mt-4 bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition"
+                >
+                  {isAdmin ? "Back to Project" : "Back to Dashboard"}
                 </Link>
               </div>
             )}
@@ -292,9 +317,14 @@ export default function ChapterClient({
         {showQuiz && noQuiz && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
             <CheckCircle size={32} className="mx-auto text-green-600 mb-2" />
-            <p className="text-green-800 font-medium">Chapter complete!</p>
-            <Link href="/dashboard" className="inline-block mt-4 bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition">
-              Back to Dashboard
+            <p className="text-green-800 font-medium">
+              {isAdmin ? "Test complete! (No quiz for this chapter)" : "Chapter complete!"}
+            </p>
+            <Link
+              href={isAdmin ? `/admin/projects/${projectId}` : "/dashboard"}
+              className="inline-block mt-4 bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition"
+            >
+              {isAdmin ? "Back to Project" : "Back to Dashboard"}
             </Link>
           </div>
         )}

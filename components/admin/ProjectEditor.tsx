@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   DndContext,
   closestCenter,
@@ -18,7 +19,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Settings, Trash2, Video, ArrowLeft, ExternalLink, Users, X, Search, Check } from "lucide-react";
+import { GripVertical, Plus, Settings, Trash2, Video, ArrowLeft, ExternalLink, Users, X, Search, Check, FlaskConical } from "lucide-react";
 import ChapterModal from "./ChapterModal";
 import QuizEditor from "./QuizEditor";
 import VideoUploader from "./VideoUploader";
@@ -361,6 +362,14 @@ export default function ProjectEditor({ project }: { project: Project }) {
         >
           <Users size={13} /> Assign Agents
         </button>
+        {chapters.length > 0 && (
+          <Link
+            href={`/project/${project.id}/chapter/${chapters[0].id}`}
+            className="flex items-center gap-1.5 text-amber-600 hover:text-amber-800 transition font-medium"
+          >
+            <FlaskConical size={13} /> Test Training
+          </Link>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-4">
