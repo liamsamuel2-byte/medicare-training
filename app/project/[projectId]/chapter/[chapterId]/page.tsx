@@ -38,6 +38,13 @@ export default async function ChapterPage({
 
   const isAdmin = session.user.role === "ADMIN" || session.user.role === "MANAGER";
 
+  // Find the next chapter in order so admins can navigate through the whole training
+  const nextChapter = await prisma.chapter.findFirst({
+    where: { projectId, isActive: true, order: { gt: chapter.order } },
+    orderBy: { order: "asc" },
+    select: { id: true },
+  });
+
   return (
     <ChapterClient
       chapter={chapter as any}
@@ -49,6 +56,7 @@ export default async function ChapterPage({
       savedMaxPosition={videoProgress?.maxPosition ?? 0}
       videoCompleted={videoProgress?.completed ?? false}
       isAdmin={isAdmin}
+      nextChapterId={nextChapter?.id ?? null}
     />
   );
 }

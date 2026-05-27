@@ -25,6 +25,7 @@ interface Props {
   savedMaxPosition: number;
   videoCompleted: boolean;
   isAdmin?: boolean;
+  nextChapterId?: string | null;
 }
 
 const PASS_RATE = 80;
@@ -32,7 +33,7 @@ const PASS_RATE = 80;
 export default function ChapterClient({
   chapter, userId, projectId, alreadyCompleted, existingScore,
   existingPassed, savedMaxPosition, videoCompleted: initVideoCompleted,
-  isAdmin = false,
+  isAdmin = false, nextChapterId = null,
 }: Props) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -292,12 +293,22 @@ export default function ChapterClient({
                 <p className="text-green-600 text-sm mt-1">
                   {isAdmin ? "Test complete! Results are not saved in test mode." : "Passed! Chapter complete."}
                 </p>
-                <Link
-                  href={isAdmin ? `/admin/projects/${projectId}` : "/dashboard"}
-                  className="inline-block mt-4 bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition"
-                >
-                  {isAdmin ? "Back to Project" : "Back to Dashboard"}
-                </Link>
+                <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
+                  <Link
+                    href={isAdmin ? `/admin/projects/${projectId}` : "/dashboard"}
+                    className="inline-block bg-gray-200 text-gray-700 px-6 py-2 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
+                  >
+                    {isAdmin ? "Back to Project" : "Back to Dashboard"}
+                  </Link>
+                  {isAdmin && nextChapterId && (
+                    <Link
+                      href={`/project/${projectId}/chapter/${nextChapterId}`}
+                      className="inline-block bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition"
+                    >
+                      Next Chapter →
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
 
@@ -320,12 +331,22 @@ export default function ChapterClient({
             <p className="text-green-800 font-medium">
               {isAdmin ? "Test complete! (No quiz for this chapter)" : "Chapter complete!"}
             </p>
-            <Link
-              href={isAdmin ? `/admin/projects/${projectId}` : "/dashboard"}
-              className="inline-block mt-4 bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition"
-            >
-              {isAdmin ? "Back to Project" : "Back to Dashboard"}
-            </Link>
+            <div className="flex items-center justify-center gap-3 mt-4 flex-wrap">
+              <Link
+                href={isAdmin ? `/admin/projects/${projectId}` : "/dashboard"}
+                className="inline-block bg-gray-200 text-gray-700 px-6 py-2 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
+              >
+                {isAdmin ? "Back to Project" : "Back to Dashboard"}
+              </Link>
+              {isAdmin && nextChapterId && (
+                <Link
+                  href={`/project/${projectId}/chapter/${nextChapterId}`}
+                  className="inline-block bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition"
+                >
+                  Next Chapter →
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </main>
