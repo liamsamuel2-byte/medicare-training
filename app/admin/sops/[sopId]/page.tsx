@@ -51,9 +51,7 @@ export default async function SopViewPage({
         <video
           src={sop.videoUrl}
           controls
-          controlsList="nodownload"
           className="w-full aspect-video"
-          onContextMenu={() => false}
         />
       </div>
 
