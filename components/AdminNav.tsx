@@ -2,13 +2,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, BookOpen, Users, BarChart2, LogOut } from "lucide-react";
+import { LayoutDashboard, BookOpen, Users, BarChart2, LogOut, Video } from "lucide-react";
 
 const links = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/projects", label: "Projects", icon: BookOpen },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/reports", label: "Reports", icon: BarChart2 },
+  { href: "/admin/sops", label: "Video SOPs", icon: Video },
 ];
 
 export default function AdminNav({ userName }: { userName: string }) {

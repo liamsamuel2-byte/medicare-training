@@ -27,6 +27,7 @@ model User {
   videoProgress  VideoProgress[]
   assignments    ProjectAssignment[]
   resetTokens    PasswordResetToken[]
+  sops           Sop[]
 }
 
 model Project {
@@ -137,6 +138,20 @@ model QuizResponse {
   chapterResult ChapterResult @relation(fields: [chapterResultId], references: [id], onDelete: Cascade)
   question      Question      @relation(fields: [questionId], references: [id])
   answer        Answer        @relation(fields: [answerId], references: [id])
+}
+
+model Sop {
+  id            String   @id @default(cuid())
+  title         String
+  description   String
+  videoUrl      String
+  videoPublicId String
+  videoDuration Float?
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id])
 }
 
 model PasswordResetToken {
