@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search, Upload, Video, Clock, Trash2, X, FlaskConical } from "lucide-react";
+import { Search, Upload, Video, Clock, Trash2, X, Pencil } from "lucide-react";
 
 interface Sop {
   id: string;
@@ -26,6 +26,7 @@ export default function SopsClient({ initialSops }: { initialSops: Sop[] }) {
   const [sops, setSops] = useState<Sop[]>(initialSops);
   const [search, setSearch] = useState("");
   const [showUpload, setShowUpload] = useState(false);
+  const [editTarget, setEditTarget] = useState<Sop | null>(null);
 
   // Filter by title + description as user types
   const filtered = useMemo(() => {
@@ -41,6 +42,11 @@ export default function SopsClient({ initialSops }: { initialSops: Sop[] }) {
   function handleCreated(sop: Sop) {
     setSops((prev) => [sop, ...prev]);
     setShowUpload(false);
+  }
+
+  function handleUpdated(updated: Sop) {
+    setSops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    setEditTarget(null);
   }
 
   async function handleDelete(sop: Sop) {
@@ -121,13 +127,22 @@ export default function SopsClient({ initialSops }: { initialSops: Sop[] }) {
                 <span>{new Date(sop.createdAt).toLocaleDateString()}</span>
               </div>
             </Link>
-            <button
-              onClick={() => handleDelete(sop)}
-              className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-              title="Delete"
-            >
-              <Trash2 size={16} />
-            </button>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+              <button
+                onClick={() => setEditTarget(sop)}
+                className="p-2 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                title="Edit"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                onClick={() => handleDelete(sop)}
+                className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                title="Delete"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -135,7 +150,100 @@ export default function SopsClient({ initialSops }: { initialSops: Sop[] }) {
       {showUpload && (
         <UploadModal onCreated={handleCreated} onClose={() => setShowUpload(false)} />
       )}
+
+      {editTarget && (
+        <EditModal sop={editTarget} onUpdated={handleUpdated} onClose={() => setEditTarget(null)} />
+      )}
     </main>
+  );
+}
+
+// ── Edit Modal ────────────────────────────────────────────────────────────────
+
+function EditModal({ sop, onUpdated, onClose }: { sop: Sop; onUpdated: (sop: Sop) => void; onClose: () => void }) {
+  const [title, setTitle] = useState(sop.title);
+  const [description, setDescription] = useState(sop.description);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    if (!title.trim() || !description.trim()) return;
+    setSaving(true);
+    setError("");
+    const res = await fetch(`/api/sops/${sop.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: title.trim(), description: description.trim() }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      onUpdated(updated);
+    } else {
+      setError("Failed to save changes. Please try again.");
+      setSaving(false);
+    }
+  }
+
+  const canSave = title.trim() && description.trim() && !saving &&
+    (title.trim() !== sop.title || description.trim() !== sop.description);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+          <h2 className="text-lg font-semibold">Edit SOP</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g. How to process a Medicare application"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={5}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              placeholder="Describe the SOP content…"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              💡 Use keywords people would search for — this description is searched when looking for videos.
+            </p>
+          </div>
+
+          {error && (
+            <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>
+          )}
+        </div>
+
+        <div className="flex gap-3 px-6 pb-6">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!canSave}
+            className="flex-1 bg-blue-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-800 transition disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
