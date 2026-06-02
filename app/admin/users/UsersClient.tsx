@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { UserPlus, X, Upload, ChevronDown } from "lucide-react";
+import { UserPlus, X, Upload, ChevronDown, Trash2 } from "lucide-react";
 
 interface User {
   id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string;
@@ -23,6 +23,8 @@ export default function UsersClient({ initialUsers }: { initialUsers: User[] }) 
   const [bulkEmails, setBulkEmails] = useState("");
   const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number } | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleCreate() {
     setLoading(true);
@@ -86,6 +88,17 @@ export default function UsersClient({ initialUsers }: { initialUsers: User[] }) 
     }
   }
 
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const res = await fetch(`/api/admin/users/${deleteTarget.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  }
+
   return (
     <>
       <div className="flex items-center justify-between mb-8">
@@ -115,6 +128,7 @@ export default function UsersClient({ initialUsers }: { initialUsers: User[] }) 
               <th className="text-left px-6 py-3 font-medium text-gray-500">Role</th>
               <th className="text-left px-6 py-3 font-medium text-gray-500">Status</th>
               <th className="text-left px-6 py-3 font-medium text-gray-500">Joined</th>
+              <th className="px-6 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -150,6 +164,15 @@ export default function UsersClient({ initialUsers }: { initialUsers: User[] }) 
                 </td>
                 <td className="px-6 py-3 text-gray-400">
                   {new Date(u.createdAt).toLocaleDateString()}
+                </td>
+                <td className="px-6 py-3 text-right">
+                  <button
+                    onClick={() => setDeleteTarget(u)}
+                    className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+                    title="Delete user"
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -217,6 +240,45 @@ export default function UsersClient({ initialUsers }: { initialUsers: User[] }) 
                   {loading ? "Creating…" : "Create User"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-red-100 rounded-full p-2 shrink-0">
+                <Trash2 size={18} className="text-red-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Delete User</h2>
+                <p className="text-sm text-gray-500">This cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-6">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">{deleteTarget.name}</span>{" "}
+              (<span className="text-gray-500">{deleteTarget.email}</span>)?
+              All their training progress and quiz results will be permanently removed.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Delete User"}
+              </button>
             </div>
           </div>
         </div>
