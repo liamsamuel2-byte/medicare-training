@@ -14,7 +14,15 @@ export default async function DashboardPage() {
     redirect("/admin");
   }
 
-  // Show projects that are either assigned to this user, or have no assignments at all
+  // Fetch chapter-level assignments for this user
+  const chapterAssignments = await prisma.chapterAssignment.findMany({
+    where: { userId: session.user.id },
+    select: { chapterId: true, projectId: true },
+  });
+  const chapterAssignedProjectIds = new Set(chapterAssignments.map((ca) => ca.projectId));
+  const chapterAssignedChapterIds = new Set(chapterAssignments.map((ca) => ca.chapterId));
+
+  // Show projects that are either assigned to this user, or have no assignments at all, or have chapter assignments
   const allProjects = await prisma.project.findMany({
     where: { isActive: true },
     include: {
@@ -30,9 +38,23 @@ export default async function DashboardPage() {
     orderBy: { createdAt: "asc" },
   });
 
-  const projects = allProjects.filter(
-    (p) => p.assignments.length === 0 || p.assignments.some((a) => a.userId === session.user.id)
+  const projectsRaw = allProjects.filter(
+    (p) =>
+      p.assignments.length === 0 ||
+      p.assignments.some((a) => a.userId === session.user.id) ||
+      chapterAssignedProjectIds.has(p.id)
   );
+
+  // Mark whether this project is full-project or chapter-only assignment
+  const projects = projectsRaw.map((p) => {
+    const hasFullAssignment =
+      p.assignments.length === 0 || p.assignments.some((a) => a.userId === session.user.id);
+    const isChapterOnly = !hasFullAssignment && chapterAssignedProjectIds.has(p.id);
+    const visibleChapters = isChapterOnly
+      ? p.chapters.filter((c) => chapterAssignedChapterIds.has(c.id))
+      : p.chapters;
+    return { ...p, visibleChapters, isChapterOnly };
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -61,15 +83,23 @@ export default async function DashboardPage() {
 
         <div className="space-y-6">
           {projects.map((project) => {
-            const total = project.chapters.length;
-            const completed = project.chapters.filter((c) => c.results.length > 0).length;
+            const { visibleChapters, isChapterOnly } = project;
+            const total = visibleChapters.length;
+            const completed = visibleChapters.filter((c) => c.results.length > 0).length;
             const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
             return (
               <div key={project.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{project.title}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-gray-900">{project.title}</h3>
+                      {isChapterOnly && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                          Retraining
+                        </span>
+                      )}
+                    </div>
                     {project.description && (
                       <p className="text-gray-500 text-sm mt-1">{project.description}</p>
                     )}
@@ -87,9 +117,10 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="space-y-2">
-                  {project.chapters.map((chapter, idx) => {
+                  {visibleChapters.map((chapter, idx) => {
                     const done = chapter.results.length > 0;
-                    const prevDone = idx === 0 || project.chapters[idx - 1].results.length > 0;
+                    // Chapter-only assignments: all chapters immediately accessible (no sequential lock)
+                    const prevDone = isChapterOnly || idx === 0 || visibleChapters[idx - 1].results.length > 0;
                     const accessible = done || prevDone;
                     const score = done ? chapter.results[0].score : null;
 
@@ -113,7 +144,7 @@ export default async function DashboardPage() {
                             <Clock size={18} className="text-gray-400 shrink-0" />
                           )}
                           <span className="text-sm font-medium text-gray-800">
-                            {idx + 1}. {chapter.title}
+                            {chapter.order}. {chapter.title}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">

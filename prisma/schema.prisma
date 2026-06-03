@@ -23,11 +23,13 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  chapterResults ChapterResult[]
-  videoProgress  VideoProgress[]
-  assignments    ProjectAssignment[]
-  resetTokens    PasswordResetToken[]
-  sops           Sop[]
+  chapterResults     ChapterResult[]
+  videoProgress      VideoProgress[]
+  assignments        ProjectAssignment[]
+  chapterAssignments ChapterAssignment[]
+  quizAttempts       QuizAttempt[]
+  resetTokens        PasswordResetToken[]
+  sops               Sop[]
 }
 
 model Project {
@@ -72,10 +74,12 @@ model Chapter {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  questions     Question[]
-  results       ChapterResult[]
-  videoProgress VideoProgress[]
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  questions          Question[]
+  results            ChapterResult[]
+  videoProgress      VideoProgress[]
+  chapterAssignments ChapterAssignment[]
+  quizAttempts       QuizAttempt[]
 
   @@index([projectId, order])
 }
@@ -138,6 +142,39 @@ model QuizResponse {
   chapterResult ChapterResult @relation(fields: [chapterResultId], references: [id], onDelete: Cascade)
   question      Question      @relation(fields: [questionId], references: [id])
   answer        Answer        @relation(fields: [answerId], references: [id])
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  chapterId   String
+  score       Float
+  totalQ      Int
+  correctQ    Int
+  passed      Boolean
+  attemptedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId, chapterId])
+  @@index([chapterId])
+}
+
+model ChapterAssignment {
+  id         String   @id @default(cuid())
+  userId     String
+  chapterId  String
+  projectId  String
+  assignedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+  @@index([userId])
+  @@index([chapterId])
+  @@index([projectId])
 }
 
 model Sop {

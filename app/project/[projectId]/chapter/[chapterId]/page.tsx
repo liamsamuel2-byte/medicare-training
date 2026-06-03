@@ -13,6 +13,8 @@ export default async function ChapterPage({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "MANAGER";
+
   const chapter = await prisma.chapter.findFirst({
     where: { id: chapterId, projectId, isActive: true },
     include: {
@@ -22,11 +24,24 @@ export default async function ChapterPage({
           answers: { orderBy: { order: "asc" } },
         },
       },
-      project: true,
+      project: {
+        include: { assignments: { select: { userId: true } } },
+      },
     },
   });
 
   if (!chapter) notFound();
+
+  // If the project has assignments, the agent must have a project or chapter assignment
+  if (!isAdmin && chapter.project.assignments.length > 0) {
+    const hasProjectAccess = chapter.project.assignments.some((a) => a.userId === session.user.id);
+    if (!hasProjectAccess) {
+      const chapterAccess = await prisma.chapterAssignment.findUnique({
+        where: { userId_chapterId: { userId: session.user.id, chapterId } },
+      });
+      if (!chapterAccess) redirect("/dashboard");
+    }
+  }
 
   const existingResult = await prisma.chapterResult.findUnique({
     where: { userId_chapterId: { userId: session.user.id, chapterId } },
@@ -35,8 +50,6 @@ export default async function ChapterPage({
   const videoProgress = await prisma.videoProgress.findUnique({
     where: { userId_chapterId: { userId: session.user.id, chapterId } },
   });
-
-  const isAdmin = session.user.role === "ADMIN" || session.user.role === "MANAGER";
 
   // Find the next chapter in order so admins can navigate through the whole training
   const nextChapter = await prisma.chapter.findFirst({

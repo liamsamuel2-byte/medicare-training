@@ -50,14 +50,51 @@ export default async function AdminDashboard() {
     a.name.localeCompare(b.name)
   );
 
-  const recentResults = await prisma.chapterResult.findMany({
-    take: 10,
-    orderBy: { completedAt: "desc" },
+  // Project-level completions: find assignments where user has passed all chapters
+  const allAssignments = await prisma.projectAssignment.findMany({
     include: {
-      user: { select: { name: true } },
-      chapter: { select: { title: true, project: { select: { title: true } } } },
+      user: { select: { id: true, name: true } },
+      project: {
+        include: {
+          chapters: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              results: {
+                select: { userId: true, passed: true, score: true, completedAt: true },
+              },
+            },
+          },
+        },
+      },
     },
   });
+
+  type ProjectCompletion = { userName: string; projectTitle: string; completedAt: Date };
+  const projectCompletions: ProjectCompletion[] = [];
+
+  for (const pa of allAssignments) {
+    const chapters = pa.project.chapters;
+    if (chapters.length === 0) continue;
+    const allPassed = chapters.every((c) =>
+      c.results.some((r) => r.userId === pa.userId && (r.passed || r.score >= 80))
+    );
+    if (!allPassed) continue;
+    const latestDate = chapters
+      .flatMap((c) => c.results.filter((r) => r.userId === pa.userId))
+      .map((r) => r.completedAt)
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    if (latestDate) {
+      projectCompletions.push({
+        userName: pa.user.name,
+        projectTitle: pa.project.title,
+        completedAt: latestDate,
+      });
+    }
+  }
+
+  projectCompletions.sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime());
+  const recentProjectCompletions = projectCompletions.slice(0, 10);
 
   const stats = [
     { label: "Projects", value: projects, icon: BookOpen, href: "/admin/projects", color: "blue" },
@@ -109,22 +146,20 @@ export default async function AdminDashboard() {
             </Link>
           </div>
           <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-            {recentResults.length === 0 && (
-              <p className="px-6 py-4 text-gray-400 text-sm">No completions yet.</p>
+            {recentProjectCompletions.length === 0 && (
+              <p className="px-6 py-4 text-gray-400 text-sm">No completed courses yet.</p>
             )}
-            {recentResults.map((r) => (
-              <div key={r.id} className="px-6 py-3 flex items-center justify-between">
+            {recentProjectCompletions.map((r, i) => (
+              <div key={i} className="px-6 py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-800">{r.user.name}</p>
-                  <p className="text-xs text-gray-400">
-                    {r.chapter.project.title} — {r.chapter.title}
-                  </p>
+                  <p className="text-sm font-medium text-gray-800">{r.userName}</p>
+                  <p className="text-xs text-gray-400">{r.projectTitle}</p>
                 </div>
                 <div className="text-right">
-                  <span className={`text-sm font-bold ${r.score >= 80 ? "text-green-600" : "text-red-600"}`}>
-                    {Math.round(r.score)}%
+                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                    Complete ✓
                   </span>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-400 mt-0.5">
                     {new Date(r.completedAt).toLocaleDateString()}
                   </p>
                 </div>

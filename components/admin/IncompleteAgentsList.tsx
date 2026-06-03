@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Bell, Check } from "lucide-react";
+import { Bell, Check, X } from "lucide-react";
 
 interface Agent {
   id: string;
@@ -12,6 +12,7 @@ interface Agent {
 export default function IncompleteAgentsList({ agents }: { agents: Agent[] }) {
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   async function handleSend(agent: Agent) {
     setSending(agent.id);
@@ -24,13 +25,15 @@ export default function IncompleteAgentsList({ agents }: { agents: Agent[] }) {
     setSending(null);
   }
 
-  if (agents.length === 0) {
+  const visible = agents.filter((a) => !dismissed.has(a.id));
+
+  if (visible.length === 0) {
     return <p className="px-6 py-4 text-gray-400 text-sm">All assigned agents are up to date.</p>;
   }
 
   return (
     <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-      {agents.map((agent) => {
+      {visible.map((agent) => {
         const isSent = sent.has(agent.id);
         const isSending = sending === agent.id;
         return (
@@ -62,6 +65,13 @@ export default function IncompleteAgentsList({ agents }: { agents: Agent[] }) {
               ) : (
                 <><Bell size={13} /> Send Reminder</>
               )}
+            </button>
+            <button
+              onClick={() => setDismissed((prev) => new Set([...prev, agent.id]))}
+              className="shrink-0 p-1 text-gray-300 hover:text-gray-500 rounded transition"
+              title="Dismiss"
+            >
+              <X size={14} />
             </button>
           </div>
         );

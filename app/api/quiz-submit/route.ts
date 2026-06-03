@@ -58,5 +58,12 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Always record every attempt (agents only — skip admin test runs)
+  if (session.user.role === "AGENT") {
+    await prisma.quizAttempt.create({
+      data: { userId: session.user.id, chapterId, score, totalQ: total, correctQ: correct, passed },
+    });
+  }
+
   return NextResponse.json({ score, correct, total, passed });
 }
